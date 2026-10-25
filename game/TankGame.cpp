@@ -44,6 +44,17 @@
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
+
+// treadmarks-vr: in VR the world is drawn with the camera turned to where the head looks, so nothing the player turns
+// to see has been culled (shim/gl1.cpp takes the turn back out of the eye matrices). Only around the draw calls: the
+// game itself always sees its own camera.
+#ifdef __EMSCRIPTEN__
+#define TMVR_HEAD_TURNED { const float tmvrCamB = VW.Cam.b; VW.Cam.b += tmgl_FoldHeadYaw(VW.Cam.a);
+#define TMVR_HEAD_RESTORED VW.Cam.b = tmvrCamB; }
+#else
+#define TMVR_HEAD_TURNED
+#define TMVR_HEAD_RESTORED
+#endif
 #endif
 
 using namespace std;
@@ -1858,12 +1869,13 @@ bool CTankGame::DoFrame(){
 		tmgl_Phase(TMGL_PHASE_WORLD);	// treadmarks-vr: what follows is the 3D world (drawn per eye in VR)
 		//
 		if(VW.Map.Width() > 0 && VW.Map.Height() > 0){
-			VW.VoxelRend->GLTerrainRender(&VW.Map, &VW.Cam,
+			TMVR_HEAD_TURNED VW.VoxelRend->GLTerrainRender(&VW.Map, &VW.Cam,
 				(GameSettings.GraphicsSettings.WireFrame ? (GLREND_WIREFRAME | GLREND_NOSKY) : 0) |
 				(GameSettings.GraphicsSettings.DetailTerrain ? 0 : GLREND_NODETAIL) |
 				(GameSettings.GraphicsSettings.DisableMT ? GLREND_NOMT : 0) | (GameSettings.GraphicsSettings.UseFog ? 0 : GLREND_NOFOG) |
 				(GameSettings.GraphicsSettings.DebugLockPatches ? GLREND_LOCKPATCHES : 0),
 				/*ViewDistance,*/ GameSettings.GraphicsSettings.Quality, msecs);
+			TMVR_HEAD_RESTORED
 		}else{
 			GenBuf.Clear();
 		}
@@ -2012,7 +2024,7 @@ bool CTankGame::DoFrame(){
 	//
 	tmr2.Start();
 	VW.PolyRend->InitRender();//, NULL, NULL);
-	VW.PolyRend->SetupCamera(&VW.Cam);
+	TMVR_HEAD_TURNED VW.PolyRend->SetupCamera(&VW.Cam); TMVR_HEAD_RESTORED
 	//
 	//This one is to grab server outputs just before think.
 	VW.PulseNetwork(&TankPacket);
@@ -2056,8 +2068,9 @@ bool CTankGame::DoFrame(){
 		if(GameState.TakeMapSnapshot == 0){
 			VW.PolyRend->GLDoRender();	//Skip polygonal objects and sprites when map snapshot requested.
 		}
-		VW.VoxelRend->GLRenderWater(&VW.Map, &VW.Cam, (GameSettings.GraphicsSettings.UseFog ? 0 : GLREND_NOFOG) |
+		TMVR_HEAD_TURNED VW.VoxelRend->GLRenderWater(&VW.Map, &VW.Cam, (GameSettings.GraphicsSettings.UseFog ? 0 : GLREND_NOFOG) |
 			(GameSettings.GraphicsSettings.DebugLockPatches ? GLREND_LOCKPATCHES : 0), GameSettings.GraphicsSettings.Quality);
+		TMVR_HEAD_RESTORED
 		//Render water in front of all transparent objects.
 		if(GameState.TakeMapSnapshot == 0){
 			VW.PolyRend->GLDoRenderTrans();

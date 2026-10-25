@@ -149,7 +149,9 @@ export function setupXR({ M, canvas, input, frame, gameSize, button }) {
 		I[p >> 2] = 1; I[(p >> 2) + 1] = 0; I[(p >> 2) + 2] = 2;
 		[[0, 0.032], [w / 2, -0.032]].forEach(([x, shift], i) => {
 			const base = p + VIEW0 + i * VIEW_SIZE;
-			const eye = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, shift, 0, 0, 1];
+			// window.tmvrFakeYaw (degrees, + = head turned left): view matrix = shift * rotate(-yaw)
+			const y = ((window.tmvrFakeYaw || 0) * Math.PI) / 180, c = Math.cos(y), sn = Math.sin(y);
+			const eye = [c, 0, sn, 0, 0, 1, 0, 0, -sn, 0, c, 0, shift, 0, 0, 1];
 			I.set([x, 0, w / 2, h], (base + V_VP) >> 2);
 			F.set(proj, (base + V_PROJ) >> 2);
 			F.set(eye, (base + V_EYE) >> 2);

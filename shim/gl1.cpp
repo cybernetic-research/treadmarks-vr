@@ -42,6 +42,16 @@ namespace {
 struct Mat4 { float m[16]; };
 
 void matIdentity(float* m) { memset(m, 0, 64); m[0] = m[5] = m[10] = m[15] = 1.0f; }
+void matRotate(float* r, float angleDeg, float x, float y, float z) {	// as glRotatef
+	float len = sqrtf(x * x + y * y + z * z);
+	matIdentity(r);
+	if (len <= 0.0f) return;
+	x /= len; y /= len; z /= len;
+	float a = angleDeg * 3.14159265358979f / 180.0f, c = cosf(a), s = sinf(a), ic = 1.0f - c;
+	r[0] = x * x * ic + c; r[1] = y * x * ic + z * s; r[2] = x * z * ic - y * s;
+	r[4] = x * y * ic - z * s; r[5] = y * y * ic + c; r[6] = y * z * ic + x * s;
+	r[8] = x * z * ic + y * s; r[9] = y * z * ic - x * s; r[10] = z * z * ic + c;
+}
 void matMul(float* out, const float* a, const float* b) {	// out = a * b (column-major)
 	float r[16];
 	for (int c = 0; c < 4; c++)
@@ -112,6 +122,7 @@ std::vector<Mat4> mats;
 int lastMv = -1, lastProj = -1;
 
 XrFrame xr;
+float foldYaw = 0.0f, foldPitch = 0.0f;	// see tmgl_FoldHeadYaw
 int width = 640, height = 480;
 
 GLuint prog, vbo, vao, hudProg, hudVbo, hudVao, hudFbo, hudTex, hudDepth;
@@ -491,6 +502,7 @@ void resetFrame() {
 	lastMv = lastProj = -1;
 	mvDirty = projDirty = true;
 	cur.phase = TMGL_PHASE_HUD;
+	foldYaw = 0.0f;
 }
 
 } // namespace
@@ -501,10 +513,22 @@ EMSCRIPTEN_KEEPALIVE void* tmgl_XrFrame() { return &xr; }
 EMSCRIPTEN_KEEPALIVE int tmgl_Width() { return width; }
 EMSCRIPTEN_KEEPALIVE int tmgl_Height() { return height; }
 
-// Headset field of view plus room to turn the head (see the treadmarks-vr note in TankGame.cpp).
-static float cullAngle = 140.0f;
+// Headset field of view plus a margin (see the treadmarks-vr note in TankGame.cpp). Turning the head sideways is
+// covered by tmgl_FoldHeadYaw instead.
+static float cullAngle = 120.0f;
 EMSCRIPTEN_KEEPALIVE void tmgl_SetCullAngle(float degrees) { cullAngle = degrees; }
 float tmgl_CullAngle(void) { return xr.active && xr.nviews > 0 ? cullAngle : 0.0f; }
+
+// In VR the game draws (and culls) its world with its camera turned by the head's yaw, so whatever the player turns
+// to look at has been prepared. The game's camera is pitch * yaw * position (glRotatef a about X, then b about Y), so
+// turning the yaw by d and using eye * Rx(a) * Ry(-d) * Rx(-a) as the eye matrix gives exactly the same picture.
+float tmgl_FoldHeadYaw(float camPitch) {
+	if (!(xr.active && xr.nviews > 0)) return 0.0f;
+	const float* v = xr.views[0].eye;	// view matrix; the head looks along -(v[2], v[6], v[10])
+	foldYaw = -atan2f(v[2], v[10]) * 180.0f / 3.14159265358979f;
+	foldPitch = camPitch;
+	return foldYaw;
+}
 
 void tmgl_Init(int w, int h) {
 	width = w; height = h;
@@ -577,7 +601,13 @@ void tmgl_EndFrame(void) {
 		glBindFramebuffer(GL_FRAMEBUFFER, xr.fbo);
 		glEnable(GL_SCISSOR_TEST);
 		for (int i = 0; i < xr.nviews && i < 2; i++) {
-			const XrView& v = xr.views[i];
+			XrView v = xr.views[i];
+			if (foldYaw != 0.0f) {	// take the head yaw the game's camera was turned by back out (tmgl_FoldHeadYaw)
+				float r[16];
+				matRotate(r, foldPitch, 1, 0, 0); matMul(v.eye, v.eye, r);
+				matRotate(r, -foldYaw, 0, 1, 0); matMul(v.eye, v.eye, r);
+				matRotate(r, -foldPitch, 1, 0, 0); matMul(v.eye, v.eye, r);
+			}
 			glViewport(v.vp[0], v.vp[1], v.vp[2], v.vp[3]);
 			glScissor(v.vp[0], v.vp[1], v.vp[2], v.vp[3]);
 			glDepthMask(GL_TRUE);

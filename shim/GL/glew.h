@@ -229,6 +229,7 @@ void tmgl_Phase(int phase);           // which layer the following draws belong 
 void tmgl_Init(int width, int height); // after the WebGL 2 context exists
 void tmgl_EndFrame(void);              // draws the recorded frame (flat screen, or both eyes in VR)
 float tmgl_CullAngle(void);            // in VR: the horizontal view angle (degrees) the game should prepare; else 0
+float tmgl_FoldHeadYaw(float camPitch); // in VR: degrees to add to the camera yaw while drawing the world; else 0
 
 #ifdef __cplusplus
 }
