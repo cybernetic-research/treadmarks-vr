@@ -60,9 +60,18 @@ def main():
 	emcc, empp = emsdk_tool('emcc'), emsdk_tool('em++')
 
 	opt = ['-O0', '-g'] if debug else ['-O2']
-	common = opt + ['-I' + SHIM, '-I' + GAME, '-DTMVR=1', '-sUSE_ZLIB=1',
+	common = opt + ['-I' + SHIM, '-I' + GAME, '-include', os.path.join(SHIM, 'tmvr_compat.h'), '-DTMVR=1', '-sUSE_ZLIB=1',
 		'-Wno-everything']	# 1990s code: thousands of harmless warnings would hide the real errors
 	cxx = common + ['-std=c++17', '-fexceptions']
+
+	# Rebuild everything when the compiler flags change.
+	stamp = os.path.join(obj_dir, 'flags.txt')
+	flags_text = ' '.join(cxx)
+	if not os.path.exists(stamp) or open(stamp).read() != flags_text:
+		for f in os.listdir(obj_dir):
+			if f.endswith('.o'):
+				os.remove(os.path.join(obj_dir, f))
+		open(stamp, 'w').write(flags_text)
 
 	units = [(os.path.join(GAME, s), s) for s in GAME_SRCS] + [(os.path.join(SHIM, s), 'shim/' + s) for s in SHIM_SRCS]
 	todo = []
@@ -99,7 +108,8 @@ def main():
 		'-sFORCE_FILESYSTEM=1', '-sEXIT_RUNTIME=0', '-sMODULARIZE=1', '-sEXPORT_NAME=TreadMarks',
 		'-sINVOKE_RUN=0', '-sENVIRONMENT=web',
 		'-sEXPORTED_FUNCTIONS=' + ','.join(EXPORTS),
-		'-sEXPORTED_RUNTIME_METHODS=FS,callMain,HEAPU8,HEAPF32,HEAP32,ccall',
+		'-sEXPORTED_RUNTIME_METHODS=FS,GL,callMain,HEAPU8,HEAPF32,HEAP32',
+		'-lidbfs.js',
 		'-o', os.path.join(WEB, 'tm.js')]
 	if debug:
 		link += ['-sASSERTIONS=2', '-sSAFE_HEAP=0']

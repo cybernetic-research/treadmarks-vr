@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tread Marks</title>
+<style>
+	:root { color-scheme: dark; }
+	html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 16px/1.4 system-ui, sans-serif; overflow: hidden; }
+	#canvas { position: absolute; inset: 0; margin: auto; display: block; image-rendering: auto; outline: none; }
+	#overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+		gap: 16px; background: rgba(0, 0, 0, 0.85); text-align: center; padding: 16px; }
+	#overlay[hidden] { display: none; }
+	h1 { margin: 0; font-size: 28px; letter-spacing: 0.04em; }
+	button { font: inherit; padding: 10px 24px; border-radius: 6px; border: 1px solid #888; background: #2a2a2a; color: #fff; cursor: pointer; }
+	button:hover { background: #3a3a3a; }
+	#vr { position: absolute; right: 16px; bottom: 16px; z-index: 2; }
+	.small { font-size: 13px; color: #999; max-width: 36em; }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0" width="640" height="480"></canvas>
+<div id="overlay">
+	<h1>Tread Marks</h1>
+	<div id="status">Loading…</div>
+	<button id="play" hidden>Play</button>
+	<p class="small">Keyboard and mouse as in the original, or a gamepad: left stick drives, right stick turns the gun,
+		right trigger fires, A selects, B goes back. In VR, point the right controller at the screen and pull the trigger to
+		click menus.</p>
+	<p class="small">Tread Marks © Longbow Digital Arts, released under the GNU GPL v3.</p>
+</div>
+<button id="vr" hidden>Enter VR</button>
+<script src="tm.js"></script>
+<script type="module" src="platform.js"></script>
+</body>
+</html>
