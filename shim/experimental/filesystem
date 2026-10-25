@@ -1,0 +1,4 @@
+// treadmarks-vr: the game uses the pre-C++17 name; Emscripten's libc++ has std::filesystem.
+#pragma once
+#include <filesystem>
+namespace std { namespace experimental { namespace filesystem { using namespace std::filesystem; } } }

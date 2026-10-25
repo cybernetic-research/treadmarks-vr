@@ -453,7 +453,9 @@ public:
 #include <unistd.h>
 inline void Sleep(unsigned int iMilliseconds)
 {
+#ifndef __EMSCRIPTEN__	// treadmarks-vr: a browser tab must not block; the display paces the frames instead.
     usleep(iMilliseconds*1000);
+#endif
 }
 #endif
 

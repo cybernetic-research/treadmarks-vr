@@ -1850,6 +1850,7 @@ bool CTankGame::DoFrame(){
 	//
 	tmr2.Start();
 	if(DoGLDisplay){//GameSettings.DedicatedServer == false){
+		tmgl_Phase(TMGL_PHASE_WORLD);	// treadmarks-vr: what follows is the 3D world (drawn per eye in VR)
 		//
 		if(VW.Map.Width() > 0 && VW.Map.Height() > 0){
 			VW.VoxelRend->GLTerrainRender(&VW.Map, &VW.Cam,
@@ -2055,6 +2056,7 @@ bool CTankGame::DoFrame(){
 		//Render water in front of all transparent objects.
 		if(GameState.TakeMapSnapshot == 0){
 			VW.PolyRend->GLDoRenderTrans();
+			tmgl_Phase(TMGL_PHASE_HUD);	// treadmarks-vr: what follows is the 2D screen (a panel in VR)
 			VW.PolyRend->GLDoRenderOrtho();
 			//
 			Camera cam;// = VW.Cam;

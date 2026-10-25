@@ -1,0 +1,4 @@
+web/tm.js
+web/tm.wasm
+web/data
+*.pyc

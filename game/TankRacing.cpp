@@ -19,6 +19,10 @@
 #include <new>
 #include <iostream>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #ifdef QT_CORE_LIB
 #include <QApplication>
 #include <QPixMap>
@@ -413,6 +417,10 @@ int main(int argc, char** argv)
 	if(CTankGame::Get().GetSettings()->DedicatedServer) GetDedicatedWin()->show();
 #endif
 
+#ifdef __EMSCRIPTEN__
+	// treadmarks-vr: in the browser the page calls tmvr_frame() once per display frame instead of this loop.
+	return 0;
+#endif
 	while(!CTankGame::Get().GetGameState()->Quit)
 	{
 		CheckGraphics();
@@ -430,6 +438,18 @@ int main(int argc, char** argv)
 	CTankGame::Get().GetVW()->Net.FreeClient();
 	return 0;
 }
+
+#ifdef __EMSCRIPTEN__
+// treadmarks-vr: one turn of the main loop above.
+extern "C" EMSCRIPTEN_KEEPALIVE void tmvr_frame()
+{
+	if(!CTankGame::Get().GetGameState()->Quit)
+	{
+		CheckGraphics();
+		CTankGame::Get().DoFrame();
+	}
+}
+#endif
 
 bool RegistrySave(){
 	if(CTankGame::Get().GetSettings()->DedicatedServer) return false;
