@@ -1,13 +1,13 @@
 // treadmarks-vr: tiny zero-dependency static server for the game.
 //
-//   node tools/serve.mjs                      -> http://localhost:8095  (WebXR works on localhost)
+//   node tools/serve.mjs                      -> http://localhost:8097  (WebXR works on localhost)
 //   node tools/serve.mjs --port 9000
 //   node tools/serve.mjs --data <dir>         game data folder (default ../treadmarks-vr-upstream/Resources)
 //   node tools/serve.mjs --manifest <file>    write the data manifest for static hosting, then exit
 //
 // web/ is served at /, the game data at /data/. /data/manifest.json lists every data file (path, size, mtime) so the
 // page can fetch them and keep them in its cache. Range requests are supported so music can stream.
-// On a Quest, run `adb reverse tcp:8095 tcp:8095` and open http://localhost:8095 in the headset browser.
+// On a Quest, run `adb reverse tcp:8097 tcp:8097` and open http://localhost:8097 in the headset browser.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
 const arg = (name, def) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] ? args[i + 1] : def; };
-const port = Number(arg('--port', 8095));
+const port = Number(arg('--port', 8097));
 const dataDir = path.resolve(arg('--data', path.join(root, '..', 'treadmarks-vr-upstream', 'Resources')));
 const webDir = path.join(root, 'web');
 
