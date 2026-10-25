@@ -9,13 +9,16 @@
 //                                             open https://<this computer's address>:8097 and accept the warning.
 //
 // web/ is served at /, the game data at /data/. /data/manifest.json lists every data file (path, size, mtime) so the
-// page can fetch them and keep them in its cache. Range requests are supported so music can stream.
+// page can fetch them and keep them in its cache. Range requests are supported so music can stream, and compressible
+// files are sent gzipped.
 // On a Quest: either use --https as above, or connect it by USB, run `adb reverse tcp:8097 tcp:8097` and open
 // http://localhost:8097 in the headset browser.
 
 import http from 'node:http';
 import https from 'node:https';
 import os from 'node:os';
+import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -70,6 +73,26 @@ function certificate() {
 	return { key: fs.readFileSync(key), cert: fs.readFileSync(cert), ips };
 }
 
+// The game's art (BMP), maps and models shrink to about 40% with gzip (251 MB -> 99 MB in all). Compressed copies are
+// kept in the system temp folder, keyed by path, size and time, so each file is compressed once.
+const compressible = new Set(['.bmp', '.ved', '.lwo', '.wav', '.img', '.luv', '.ent', '.txt', '.cfg', '.wasm', '.js', '.html', '.json']);
+const gzDir = path.join(os.tmpdir(), 'treadmarks-vr-gz');
+fs.mkdirSync(gzDir, { recursive: true });
+const gzBusy = new Map();
+function gzipped(file, st) {
+	const key = crypto.createHash('sha1').update(`${file}|${st.size}|${st.mtimeMs}`).digest('hex');
+	const out = path.join(gzDir, key + '.gz');
+	if (gzBusy.has(key)) return gzBusy.get(key);
+	const job = fs.promises.readFile(out).catch(async () => {
+		const gz = await new Promise((resolve, reject) =>
+			fs.readFile(file, (err, data) => (err ? reject(err) : zlib.gzip(data, { level: 6 }, (e, r) => (e ? reject(e) : resolve(r))))));
+		await fs.promises.writeFile(out, gz).catch(() => {});
+		return gz;
+	}).finally(() => gzBusy.delete(key));
+	gzBusy.set(key, job);
+	return job;
+}
+
 let cachedManifest = null;
 const useHttps = args.includes('--https');
 const tls = useHttps ? certificate() : null;
@@ -100,6 +123,13 @@ const tls = useHttps ? certificate() : null;
 			res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
 			if (req.method === 'HEAD') { res.end(); return; }
 			fs.createReadStream(file, { start, end }).pipe(res);
+			return;
+		}
+		if (compressible.has(path.extname(file).toLowerCase()) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+			gzipped(file, st).then((gz) => {
+				res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Content-Length': gz.length, Vary: 'Accept-Encoding' });
+				res.end(req.method === 'HEAD' ? undefined : gz);
+			}, () => { res.writeHead(500).end(); });
 			return;
 		}
 		res.writeHead(200, { ...headers, 'Content-Length': st.size });
