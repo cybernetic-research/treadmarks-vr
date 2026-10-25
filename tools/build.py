@@ -6,7 +6,7 @@
 #   python tools/build.py --clean    throw away the object files first
 #
 # Object files go to a local folder (TMVR_OBJ, default %LOCALAPPDATA%/treadmarks-vr-build) rather than the repo,
-# which may be on a network share. Only sources newer than their object (or whose headers changed) are recompiled.
+# which may be on a network share. Only sources whose file or headers changed are recompiled.
 # Jobs are capped (TMVR_JOBS, default 6) to keep the machine responsive.
 
 import os, subprocess, sys, shutil, concurrent.futures
@@ -88,6 +88,8 @@ def main():
 		tool = emcc if src.endswith('.c') else empp
 		flags = common if src.endswith('.c') else cxx
 		r = subprocess.run([tool] + flags + ['-MMD', '-MF', dep, '-c', src, '-o', obj], capture_output=True, text=True)
+		if r.returncode == 0:
+			open(obj[:-2] + '.sig', 'w', encoding='utf-8').write(signature(dep_files(src, dep)))
 		return name, r.returncode, (r.stdout + r.stderr).strip()
 
 	failed = []
@@ -123,21 +125,36 @@ def main():
 	print('treadmarks-vr: built web/tm.js and web/tm.wasm')
 
 
-def needs_build(src, obj, dep):
-	if not os.path.exists(obj) or not os.path.exists(dep):
-		return True
-	t = os.path.getmtime(obj)
+def dep_files(src, dep):
+	bs = chr(92)	# backslash
 	try:
-		text = open(dep, encoding='utf-8', errors='replace').read().replace('\\\n', ' ')
+		text = open(dep, encoding='utf-8', errors='replace').read().replace(bs + '\n', ' ')	# line continuations
 	except OSError:
-		return True
-	# "obj: src hdr1 hdr2 ..." with backslash-escaped spaces
+		return [src]
 	deps = text.split(': ', 1)[1] if ': ' in text else ''	# not ':' alone: Windows drive letters
-	deps = deps.replace('\\ ', '\0').split()
-	for d in [src] + [x.replace('\0', ' ') for x in deps]:
-		if os.path.exists(d) and os.path.getmtime(d) > t:
-			return True
-	return False
+	deps = deps.replace(bs + ' ', chr(0)).split()	# backslash-space is a space inside a path
+	return [src] + [d.replace(chr(0), ' ') for d in deps]
+
+
+# The sources may be on a network share whose clock differs from this machine's, so "newer than the object" is not
+# reliable. Instead each object keeps the time and size of every file it was built from (.sig), and is rebuilt when
+# any of them change.
+def signature(files):
+	out = []
+	for f in files:
+		try:
+			st = os.stat(f)
+			out.append('%s|%d|%d' % (os.path.normcase(os.path.abspath(f)), st.st_mtime_ns, st.st_size))
+		except OSError:
+			out.append(f + '|missing')
+	return '\n'.join(sorted(set(out)))
+
+
+def needs_build(src, obj, dep):
+	sig = obj[:-2] + '.sig'
+	if not os.path.exists(obj) or not os.path.exists(dep) or not os.path.exists(sig):
+		return True
+	return open(sig, encoding='utf-8').read() != signature(dep_files(src, dep))
 
 
 if __name__ == '__main__':

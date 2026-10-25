@@ -394,6 +394,8 @@ void replay(int which, const XrView* view, float sx, float sy, int ox, int oy, b
 	for (const Cmd& c : cmds) {
 		const DrawState& s = states[c.type == CMD_DRAW ? c.state : c.state];
 		bool world = s.phase == TMGL_PHASE_WORLD;
+		// 2D drawn during the 3D pass (race countdown and the like) belongs on the panel in VR.
+		if (world && c.type == CMD_DRAW && mats[c.proj].m[15] != 0.0f) world = false;
 		if (which == REPLAY_WORLD && !world) continue;
 		if (which == REPLAY_HUD && world) continue;
 		if (!view && memcmp(vp, s.vp, sizeof(vp)) != 0) {

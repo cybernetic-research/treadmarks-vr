@@ -4,12 +4,19 @@
 //   node tools/serve.mjs --port 9000
 //   node tools/serve.mjs --data <dir>         game data folder (default ../treadmarks-vr-upstream/Resources)
 //   node tools/serve.mjs --manifest <file>    write the data manifest for static hosting, then exit
+//   node tools/serve.mjs --https              HTTPS with a self-signed certificate (made with openssl on first use,
+//                                             kept in tools/.cert), so a headset on the network can use WebXR:
+//                                             open https://<this computer's address>:8097 and accept the warning.
 //
 // web/ is served at /, the game data at /data/. /data/manifest.json lists every data file (path, size, mtime) so the
 // page can fetch them and keep them in its cache. Range requests are supported so music can stream.
-// On a Quest, run `adb reverse tcp:8097 tcp:8097` and open http://localhost:8097 in the headset browser.
+// On a Quest: either use --https as above, or connect it by USB, run `adb reverse tcp:8097 tcp:8097` and open
+// http://localhost:8097 in the headset browser.
 
 import http from 'node:http';
+import https from 'node:https';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,8 +54,26 @@ if (args.includes('--manifest')) {
 	process.exit(0);
 }
 
+// A self-signed certificate covering localhost and this computer's network addresses.
+function certificate() {
+	const dir = path.join(root, 'tools', '.cert');
+	const key = path.join(dir, 'key.pem'), cert = path.join(dir, 'cert.pem');
+	const ips = Object.values(os.networkInterfaces()).flat().filter((a) => a && a.family === 'IPv4' && !a.internal).map((a) => a.address);
+	const san = ['DNS:localhost', 'IP:127.0.0.1', ...ips.map((ip) => 'IP:' + ip)].join(',');
+	const sanFile = path.join(dir, 'san.txt');
+	if (!fs.existsSync(cert) || !fs.existsSync(sanFile) || fs.readFileSync(sanFile, 'utf8') !== san) {
+		fs.mkdirSync(dir, { recursive: true });
+		execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '825', '-subj', '/CN=treadmarks-vr',
+			'-addext', 'subjectAltName=' + san, '-keyout', key, '-out', cert], { stdio: 'ignore' });
+		fs.writeFileSync(sanFile, san);
+	}
+	return { key: fs.readFileSync(key), cert: fs.readFileSync(cert), ips };
+}
+
 let cachedManifest = null;
-http.createServer((req, res) => {
+const useHttps = args.includes('--https');
+const tls = useHttps ? certificate() : null;
+(useHttps ? (h) => https.createServer({ key: tls.key, cert: tls.cert }, h) : http.createServer)((req, res) => {
 	let url;
 	try { url = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400).end(); return; }
 	if (url === '/data/manifest.json') {
@@ -82,5 +107,7 @@ http.createServer((req, res) => {
 		fs.createReadStream(file).pipe(res);
 	});
 }).listen(port, () => {
-	console.log(`treadmarks-vr: http://localhost:${port}  (data: ${dataDir})`);
+	const scheme = useHttps ? 'https' : 'http';
+	console.log(`treadmarks-vr: ${scheme}://localhost:${port}  (data: ${dataDir})`);
+	for (const ip of tls?.ips || []) console.log(`treadmarks-vr: ${scheme}://${ip}:${port}  (headset)`);
 });

@@ -227,10 +227,15 @@ async function start() {
 
 	// Flat screen: one game frame per display frame. In VR the headset's frame loop takes over (xr.js).
 	let running = true;
+	// window.tmvrStats: average time the game takes per frame (ms), for checking headroom on a headset.
+	const stats = (window.tmvrStats = { frameMs: 0, frames: 0 });
 	const frame = () => {
 		try {
 			input.beforeFrame();
+			const t0 = performance.now();
 			M._tmvr_frame();
+			stats.frameMs += (performance.now() - t0 - stats.frameMs) * 0.05;
+			stats.frames++;
 		} catch (e) {
 			running = false;
 			status('The game stopped: ' + e);
