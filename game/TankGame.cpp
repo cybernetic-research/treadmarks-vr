@@ -1148,6 +1148,11 @@ void CTankGame::DoPlayerAndCam()
 	float fAspect = float(GenBuf.Width()) / float(GenBuf.Height());
 	float viewangle = min(60.0f, 50.0f + (LengthVec3(PlayerEnt->Velocity) * 0.5f));
 	GameState.ViewAngle = viewangle + DAMP(GameState.ViewAngle - viewangle, 0.1f, VW.FrameFrac());	//Damp to wanted viewangle - 10% in one second.
+#ifdef __EMSCRIPTEN__
+	// treadmarks-vr: in VR the headset sets the field of view and the player can turn their head, so the terrain and
+	// sky must be prepared for a much wider view than the game's own (it is only used for culling there).
+	if(tmgl_CullAngle() > 0.0f) GameState.ViewAngle = tmgl_CullAngle();
+#endif
 	float vertviewangle = 2.0f * RAD2DEG * (float)atan((float)tan(DEG2RAD * (GameState.ViewAngle / 2.0f)) / fAspect);
 
 	// Near Plane

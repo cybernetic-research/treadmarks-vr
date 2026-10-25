@@ -135,5 +135,32 @@ export function setupXR({ M, canvas, input, frame, gameSize, button }) {
 		input.mouseTo(Math.round(u * w), Math.round(v * h));
 	}
 
-	return { xrActive: () => !!session };
+	// ?fakexr: fills the VR frame data with two side-by-side eyes on the flat canvas, so the stereo path and the panel
+	// can be checked without a headset.
+	// window.tmvrFakeXr toggles it while running.
+	window.tmvrFakeXr = new URLSearchParams(location.search).has('fakexr');
+	function fakeFrame() {
+		if (!window.tmvrFakeXr) { if (!session) M.HEAP32[M._tmgl_XrFrame() >> 2] = 0; return; }
+		const p = M._tmgl_XrFrame();
+		const I = M.HEAP32, F = M.HEAPF32;
+		const w = canvas.width, h = canvas.height, n = 0.1, f = 1000, t = Math.tan(Math.PI / 4);
+		const a = w / 2 / h;
+		const proj = [1 / (t * a), 0, 0, 0, 0, 1 / t, 0, 0, 0, 0, -(f + n) / (f - n), -1, 0, 0, (-2 * f * n) / (f - n), 0];
+		I[p >> 2] = 1; I[(p >> 2) + 1] = 0; I[(p >> 2) + 2] = 2;
+		[[0, 0.032], [w / 2, -0.032]].forEach(([x, shift], i) => {
+			const base = p + VIEW0 + i * VIEW_SIZE;
+			const eye = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, shift, 0, 0, 1];
+			I.set([x, 0, w / 2, h], (base + V_VP) >> 2);
+			F.set(proj, (base + V_PROJ) >> 2);
+			F.set(eye, (base + V_EYE) >> 2);
+			F.set(proj, (base + V_HUDPROJ) >> 2);
+			F.set(eye, (base + V_HUDVIEW) >> 2);
+		});
+		const [pw, ph] = panelSize();
+		F.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, PANEL_Y, -PANEL_DIST, 1], (p + HUD_MODEL) >> 2);
+		F.set([pw, ph], (p + HUD_SIZE) >> 2);
+		F[(p + HUD_OPACITY) >> 2] = 1;
+	}
+
+	return { xrActive: () => !!session, beforeFrame: () => { if (!session) fakeFrame(); } };
 }

@@ -117,7 +117,7 @@ int width = 640, height = 480;
 GLuint prog, vbo, vao, hudProg, hudVbo, hudVao, hudFbo, hudTex, hudDepth;
 int hudW = 0, hudH = 0;
 struct {
-	GLint P, E, MV, T0, T1, Tex0, Tex1, AlphaFunc, AlphaRef, Fog, FogParams, FogColor;
+	GLint P, E, MV, T0, T1, Tex0, Tex1, AlphaFunc, AlphaRef, Fog, FogParams, FogColor, Opaque;
 } loc;
 struct { GLint MVP, T, Opacity; } hudLoc;
 
@@ -149,7 +149,7 @@ const char* kFS = R"(#version 300 es
 precision mediump float;
 in vec4 vCol; in vec2 vUV0; in vec2 vUV1; in float vFogZ;
 uniform sampler2D uT0, uT1;
-uniform int uTex0, uTex1, uAlphaFunc, uFog;
+uniform int uTex0, uTex1, uAlphaFunc, uFog, uOpaque;
 uniform float uAlphaRef;
 uniform vec3 uFogParams;
 uniform vec4 uFogColor;
@@ -183,6 +183,7 @@ void main() {
 		else { float d = uFogParams.z * vFogZ; f = exp(-d * d); }
 		c.rgb = mix(uFogColor.rgb, c.rgb, clamp(f, 0.0, 1.0));
 	}
+	if (uOpaque != 0) c.a = 1.0;	// drawn without blending onto the VR panel: opaque, as it looks on a flat screen
 	frag = c;
 })";
 
@@ -327,7 +328,11 @@ int alphaFuncIndex(GLenum f) {
 
 bool applied = false;
 DrawState last;
+int lastOpaque = -1;
 void applyState(const DrawState& s, bool force, bool hudAlpha) {
+	// On a flat screen alpha is ignored when blending is off, and the game's opaque art doesn't always have alpha 1.
+	int opaque = hudAlpha && !s.blend ? 1 : 0;
+	if (force || opaque != lastOpaque) { glUniform1i(loc.Opaque, opaque); lastOpaque = opaque; }
 	if (force || s.blend != last.blend) { if (s.blend) glEnable(GL_BLEND); else glDisable(GL_BLEND); }
 	if (force || s.blendSrc != last.blendSrc || s.blendDst != last.blendDst || hudAlpha) {
 		// Drawing the 2D layer into its own (transparent) texture in VR: keep alpha as coverage so the panel can be
@@ -496,6 +501,11 @@ EMSCRIPTEN_KEEPALIVE void* tmgl_XrFrame() { return &xr; }
 EMSCRIPTEN_KEEPALIVE int tmgl_Width() { return width; }
 EMSCRIPTEN_KEEPALIVE int tmgl_Height() { return height; }
 
+// Headset field of view plus room to turn the head (see the treadmarks-vr note in TankGame.cpp).
+static float cullAngle = 140.0f;
+EMSCRIPTEN_KEEPALIVE void tmgl_SetCullAngle(float degrees) { cullAngle = degrees; }
+float tmgl_CullAngle(void) { return xr.active && xr.nviews > 0 ? cullAngle : 0.0f; }
+
 void tmgl_Init(int w, int h) {
 	width = w; height = h;
 	for (auto& s : stack) { s.clear(); Mat4 m; matIdentity(m.m); s.push_back(m); }
@@ -514,6 +524,7 @@ void tmgl_Init(int w, int h) {
 		loc.Fog = glGetUniformLocation(prog, "uFog");
 		loc.FogParams = glGetUniformLocation(prog, "uFogParams");
 		loc.FogColor = glGetUniformLocation(prog, "uFogColor");
+		loc.Opaque = glGetUniformLocation(prog, "uOpaque");
 		glGenVertexArrays(1, &vao);
 		glGenBuffers(1, &vbo);
 		glBindVertexArray(vao);

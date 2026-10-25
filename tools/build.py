@@ -31,7 +31,7 @@ SHIM_SRCS = ['gl1.cpp', 'sfml_web.cpp']
 
 EXPORTS = ['_main', '_tmvr_frame', '_tmvr_key', '_tmvr_text', '_tmvr_mouse_move', '_tmvr_mouse_button', '_tmvr_focus',
 	'_tmvr_mouse_captured', '_tmvr_joy', '_tmvr_joy_axis', '_tmvr_joy_button', '_tmgl_XrFrame', '_tmgl_Width',
-	'_tmgl_Height', '_malloc', '_free']
+	'_tmgl_Height', '_tmgl_SetCullAngle', '_malloc', '_free']
 
 
 def emsdk_tool(name):

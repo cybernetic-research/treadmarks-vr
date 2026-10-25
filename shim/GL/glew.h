@@ -228,6 +228,7 @@ enum { TMGL_PHASE_WORLD = 1, TMGL_PHASE_HUD = 2 };
 void tmgl_Phase(int phase);           // which layer the following draws belong to (3D world or 2D screen)
 void tmgl_Init(int width, int height); // after the WebGL 2 context exists
 void tmgl_EndFrame(void);              // draws the recorded frame (flat screen, or both eyes in VR)
+float tmgl_CullAngle(void);            // in VR: the horizontal view angle (degrees) the game should prepare; else 0
 
 #ifdef __cplusplus
 }

@@ -202,6 +202,7 @@ async function start() {
 			: [Math.min(1920, Math.round(innerWidth * devicePixelRatio)), Math.min(1200, Math.round(innerHeight * devicePixelRatio))],
 		tmvrFrameDone: () => {},
 	});
+	window.tmvrModule = M;	// for poking at the game from the browser console
 	const FS = M.FS;
 	makeFsLikeWindows(FS);
 	FS.mkdirTree('/save');
@@ -232,6 +233,7 @@ async function start() {
 	const frame = () => {
 		try {
 			input.beforeFrame();
+			game.beforeFrame?.();
 			const t0 = performance.now();
 			M._tmvr_frame();
 			stats.frameMs += (performance.now() - t0 - stats.frameMs) * 0.05;
